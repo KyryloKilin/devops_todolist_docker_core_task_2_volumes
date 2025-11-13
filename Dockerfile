@@ -1,24 +1,21 @@
-# Stage 1: Build Stage
-ARG PYTHON_VERSION=3.8
-FROM python:${PYTHON_VERSION} as builder
-
-# Set the working directory
+ARG PY_BASE=3.11-slim
+FROM python:${PY_BASE} AS build
+ENV PYTHONUNBUFFERED=1
 WORKDIR /app
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip wheel --wheel-dir=/wheels -r requirements.txt
+
+FROM python:${PY_BASE}
+ENV PYTHONUNBUFFERED=1
+WORKDIR /app
+COPY --from=build /wheels /wheels
+RUN pip install --no-index --find-links=/wheels /wheels/*
 COPY . .
 
-# Stage 2: Run Stage
-FROM python:${PYTHON_VERSION} as run
+ARG DB_HOST=127.0.0.1
+ENV DB_HOST=${DB_HOST}
 
-WORKDIR /app
+RUN python manage.py migrate --noinput
 
-ENV PYTHONUNBUFFERED=1
-
-COPY --from=builder /app .
-
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
-
-RUN python manage.py migrate
-
-# Run database migrations and start the Django application
-ENTRYPOINT ["python", "manage.py", "runserver", "0.0.0.0:8080"]
+EXPOSE 8080
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8080"]
