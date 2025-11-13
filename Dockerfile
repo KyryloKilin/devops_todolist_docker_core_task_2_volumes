@@ -1,21 +1,25 @@
 ARG PY_BASE=3.11-slim
+
+# --- build stage ---
 FROM python:${PY_BASE} AS build
-ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --upgrade pip && pip wheel --wheel-dir=/wheels -r requirements.txt
+RUN pip install --upgrade pip \
+ && pip wheel --wheel-dir=/wheels -r requirements.txt
 
+# --- run stage ---
 FROM python:${PY_BASE}
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
+
 COPY --from=build /wheels /wheels
 RUN pip install --no-index --find-links=/wheels /wheels/*
+
 COPY . .
 
-ARG DB_HOST=127.0.0.1
-ENV DB_HOST=${DB_HOST}
-
-RUN python manage.py migrate --noinput
+# entrypoint
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 8080
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8080"]
+ENTRYPOINT ["docker-entrypoint.sh"]
